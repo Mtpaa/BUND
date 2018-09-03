@@ -9,7 +9,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 //Sidebar
   var sidebar = L.control.sidebar('sidebar', {
-           autoPan: false,
+           autoPan: true,
            closeButton: true,
            position: 'left'
        });
