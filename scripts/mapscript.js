@@ -6,7 +6,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
 
-console.log("hallo");
+
 //Sidebar
   var sidebar = L.control.sidebar('sidebar', {
            autoPan: false,
@@ -90,16 +90,14 @@ function dataForMap(data, map){
       feature.properties["title"] = data.features[i].properties.headline;
       feature.properties["text"] = data.features[i].properties.text;
 
-    //
-      console.log("marker");
+
       marker.addTo(layer1);
 
   } //ende for-schleife
 
   layer1.addTo(markers);
   map.addLayer(markers);
-  console.log(markers);
-  map.fitBounds(markers.getBounds());
+  //map.fitBounds(markers.getBounds());
 
 
 
@@ -121,8 +119,7 @@ function dataForMap(data, map){
   //searchControl
   var searchControl = new L.Control.Search({
       position:'topleft',
-      layer:markers,
-    //  layer:layer1,
+      layer:markers, //  layer:layer1,
       propertyName:"title"
     });
 
@@ -144,6 +141,6 @@ function dataForMap(data, map){
 
 
 // Ajax call geojson-file
-$.getJSON("./map_bund.geojson", function(data) {
+$.getJSON("./map.geojson", function(data) {
 dataForMap(data, map);
 });
