@@ -6,6 +6,34 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
 
+//Legend//Legend//Legend//Legend//Legend//Legend//Legend//Legend//Legend//Legend//Legend//Legend//Legend//Legend
+
+var legend = L.control({position: 'bottomright'});
+
+legend.onAdd = function (map) {
+
+    var div = L.DomUtil.create('div', 'info'),
+    grades = ['Pestizidfrei', 'Pächterabhängig', "Nutzung von Pestizide erlaubt", "k.A."],
+    labels = ["./legend/green.PNG","./legend/orange.PNG", "./legend/red.PNG", "./legend/white.PNG"];
+    div.innerHTML = '<h4>Legende</h4>'
+    // loop through our density intervals and generate a label with a colored square for each interval
+    for (var i = 0; i < grades.length; i++) {
+        div.innerHTML +=
+          (" <img src="+ labels[i] +" height='25' width='20'>")+" "+grades [i] +'<br>';
+    }
+
+    return div;
+};
+
+legend.addTo(map);
+
+
+
+
+
+
+
+
 
 //Sidebar
   var sidebar = L.control.sidebar('sidebar', {
@@ -43,6 +71,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 var markers = L.markerClusterGroup();
 var searchLayer = L.layerGroup().addTo(map);
+var legend = L.control({position: 'bottomright'});
+
 
 
 function dataForMap(data, map){
@@ -53,6 +83,7 @@ function dataForMap(data, map){
       var markerorange = L.ExtraMarkers.icon({icon: 'fa-coffee', markerColor: 'orange', shape: 'circle', prefix: 'fa'});
       var markerred = L.ExtraMarkers.icon({icon: 'fa-coffee', markerColor: 'red', shape: 'circle', prefix: 'fa'});
       var iconX = L.ExtraMarkers.icon({icon: 'fa-coffee', markerColor: 'white', shape: 'circle', prefix: 'fa'});
+    //--> marker
 
 
     for (var i = 0; i <data.features.length; i++){
