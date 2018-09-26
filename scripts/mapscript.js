@@ -13,7 +13,7 @@ var legend = L.control({position: 'bottomright'});
 legend.onAdd = function (map) {
 
     var div = L.DomUtil.create('div', 'info'),
-    grades = ['Pestizidfrei', 'Pächterabhängig', "Nutzung von Pestizide erlaubt", "k.A."],
+    grades = ['pestizidfrei', 'pestizidfrei, aber keine Absprachen mit Pächtern', "pestizidnutzende Kommunen", "k.A."],
     labels = ["./legend/green.PNG","./legend/orange.PNG", "./legend/red.PNG", "./legend/white.PNG"];
     div.innerHTML = '<h4>Legende</h4>'
     // loop through our density intervals and generate a label with a colored square for each interval
