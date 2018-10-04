@@ -13,8 +13,8 @@ var legend = L.control({position: 'bottomright'});
 legend.onAdd = function (map) {
 
     var div = L.DomUtil.create('div', 'info'),
-    grades = ['pestizidfrei', 'pestizidfrei, aber keine Absprachen mit Pächtern', "pestizidnutzende Kommunen", "k.A."],
-    labels = ["./legend/green.PNG","./legend/orange.PNG", "./legend/red.PNG", "./legend/white.PNG"];
+    grades = ['pestizidfrei', 'teilweise pestizidfrei'],// "k.A."],
+    labels = ["./legend/green.PNG","./legend/orange.PNG"];//, "./legend/red.PNG", "./legend/white.PNG"];
     div.innerHTML = '<h4>Legende</h4>'
     // loop through our density intervals and generate a label with a colored square for each interval
     for (var i = 0; i < grades.length; i++) {
@@ -81,8 +81,8 @@ function dataForMap(data, map){
       var marker;
       var markergreen = L.ExtraMarkers.icon({icon: 'fa-coffee', markerColor: 'green', shape: 'circle', prefix: 'fa'});
       var markerorange = L.ExtraMarkers.icon({icon: 'fa-coffee', markerColor: 'orange', shape: 'circle', prefix: 'fa'});
-      var markerred = L.ExtraMarkers.icon({icon: 'fa-coffee', markerColor: 'red', shape: 'circle', prefix: 'fa'});
-      var iconX = L.ExtraMarkers.icon({icon: 'fa-coffee', markerColor: 'white', shape: 'circle', prefix: 'fa'});
+    //  var markerred = L.ExtraMarkers.icon({icon: 'fa-coffee', markerColor: 'red', shape: 'circle', prefix: 'fa'});
+    //  var iconX = L.ExtraMarkers.icon({icon: 'fa-coffee', markerColor: 'white', shape: 'circle', prefix: 'fa'});
     //--> marker
 
 
@@ -107,9 +107,9 @@ function dataForMap(data, map){
               myIcon = markerorange;
           }
           else if (myclass == 3){
-              myIcon = markerred;
+            //  myIcon = markerred;
           }else {
-              myIcon = iconX;
+            //  myIcon = iconX;
           }
 
   var coordsMarker = new L.LatLng(y_point, x_point);
