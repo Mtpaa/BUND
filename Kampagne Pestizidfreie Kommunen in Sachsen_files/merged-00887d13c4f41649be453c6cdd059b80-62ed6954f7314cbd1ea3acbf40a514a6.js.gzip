@@ -1,0 +1,525 @@
+
+/*global $:true*/
+(function(window, document, undefined) {
+
+	var currentUrl = true;
+
+	/**
+	 * checks and waits for existence of %
+	 */
+	var initjQueryTest = function() {
+		if (typeof $ == 'undefined') {
+			setTimeout(initjQueryTest, 50);
+		} else {
+			// Set topic cookie
+			if ($('.tx-bundpool-topic-set').length > 0) {
+				$('.tx-bundpool-topic-set').on('click', function(e) {
+					var bundpoolTopicData = $('body').data('tx_bundpool_topic');
+					if (bundpoolTopicData) {
+						cookieSave('tx_bundpool_topic_cookie', bundpoolTopicData);
+					}
+				});
+			}
+
+			initResetButton();
+			initTopicSetEvents();
+			setTopicInBodyTagByUrlByParam();
+
+			$(document).ready(function() {
+				initAjaxCalls($('body'));
+				getUrltoPushHistoryState(window.location.pathname, false);
+				// if a user hits the "back" oder "forward" button in the browser, replace all contents that has been reloaded before by ajax
+				window.onpopstate = function(e) {
+					if (e.state) {
+						$(e.state.historyContainers).each(function(index, historyContainer) {
+							$('#c' + historyContainer.id).html(historyContainer.html);
+							initAjaxCalls($('#c' + historyContainer.id));
+							initResetButton();
+						});
+					}
+				};
+			});
+		}
+	};
+
+	/**
+	 * sets the JS click events to all links and submit buttons with class "ajax-load"
+	 *
+	 * @param container
+	 */
+	var initAjaxCalls = function(container) {
+		// find all links that trigger an ajax call
+		var ajaxLinks = $(container).find('a.ajax-load');
+		// remove the click event from these links
+		ajaxLinks.off('click');
+		// assign the click event to the links
+		ajaxLinks.on('click', function() {
+			triggerAjaxCall($(this));
+			return false;
+		});
+
+		// find all forms that trigger an ajax call
+		var ajaxForms = $(container).find('form.ajax-load');
+		// remove the submit event from these forms
+		ajaxLinks.off('submit');
+		// assign the click event to the forms
+		ajaxForms.on('submit', function() {
+			triggerAjaxCall($(this));
+			return false;
+		});
+	};
+
+	/**
+	 *
+	 * @param ajaxTrigger
+	 */
+	var triggerAjaxCall = function(ajaxTrigger) {
+		var ajaxTriggerTagName = ajaxTrigger.prop('tagName').toLowerCase();
+		// get ajax url and data for call
+		var ajaxUrl = '';
+		var ajaxData = [];
+		switch (ajaxTriggerTagName) {
+			case 'a':
+				// if the trigger is a link, get url from href
+				ajaxUrl = ajaxTrigger.attr('href');
+				break;
+			case 'form':
+				// if the trigger is a form, get url from action
+				ajaxUrl = ajaxTrigger.attr('action');
+				// serialize the form fields as ajaxData
+				ajaxUrl += (ajaxUrl.indexOf('?') > -1 ? '&' : '?') + ajaxTrigger.serialize();
+				break;
+		}
+
+		var targetAjaxContents = [];
+		$('.ajax-content').each(function(index, ajaxContent) {
+			ajaxContent = $(ajaxContent);
+			var ajaxContentTriggerNames = ajaxContent.data('ajax-trigger').split(' ');
+
+			// get the names of trigger elements that cause the content to be reloaded
+			// if on of these names match the ajaxTrigger name, do the ajax call
+			if ($.inArray(ajaxTrigger.data('ajax-trigger'), ajaxContentTriggerNames) !== -1) {
+				targetAjaxContents.push(ajaxContent);
+			}
+		});
+		// push history state
+		getUrltoPushHistoryState(ajaxUrl, true);
+		var requests = [];
+		// iterate all elements with class "ajax-content"
+		$(targetAjaxContents).each(function(index, ajaxContent) {
+			ajaxContent = $(ajaxContent);
+			// show the ajax loader (spinner)
+			showAjaxLoader(ajaxContent);
+			// copy the ajaxData and add the plugin ID of the element (ajaxContent) to be reloaded to the post data
+			var ajaxDataForThisElement = ajaxData.slice();
+			ajaxDataForThisElement.push({name: 'tx_bundpool_pluginId', value: ajaxContent.data('pluginid')});
+			// add the type num for ajax (20160715) to the post data
+			ajaxDataForThisElement.push({name: 'type', value: '20160715'});
+			// do the call
+			requests.push(
+				$.ajax({
+					type: "POST",
+					url: ajaxUrl + (ajaxUrl.indexOf('?') > -1 ? '&' : '?'),
+					data: ajaxDataForThisElement
+				}).done(function(data) {
+					//$('#c' + ajaxContent.data('pluginid')).replaceWith(data);
+					datacontent = $('<div>' + data + '</div>');
+					$('div[data-pluginid=' + ajaxContent.data('pluginid') + ']').replaceWith(datacontent.find('div[data-pluginid=' + ajaxContent.data('pluginid') + ']'));
+					// set the JS click events again, because the content was replaced
+					initAjaxCalls($('#c' + ajaxContent.data('pluginid')));
+				}).error(function (jqXHR, textStatus) { })
+			);
+		});
+		// run when all ajax requests are finished
+		$.when.apply(undefined, requests).then(function() {
+			if (ajaxTrigger.data('ajax-trigger') == 'filter') {
+				$.each(ajaxTrigger.serializeArray(), function(formElementIndex, formElement) {
+					// if it is an event the trigger is participate-topic
+					if (formElement.name.indexOf('[topic]') > 0 || formElement.name.indexOf('[participate-topic]') > 0) {
+						if (formElement.value.toString() !== '') {
+							$('body').attr('data-tx_bundpool_topic', formElement.value);
+						}
+						else {
+							$('body').removeAttr('data-tx_bundpool_topic');
+						}
+					}
+				});
+			}
+
+			if ($.isFunction(window.accordionInit)) {
+				window.accordionInit();
+			}
+			if ($.isFunction(window.faqInit)) {
+				window.faqInit();
+			}
+
+			initTopicSetEvents();
+			initResetButton();
+		});
+	};
+
+	/**
+	 *
+	 * @param url
+	 * @param doAjax Request for realUrl
+	 */
+	var getUrltoPushHistoryState = function(url, doAjax) {
+		if (doAjax) {
+			$.ajax({
+				type: "POST",
+				url: url,
+				data: {
+					type : 20160919
+				}
+			}).done(function(data) {
+				pushStateToHistory(data);
+
+			});
+		} else {
+			pushStateToHistory(url);
+		}
+	};
+
+	/**
+	 *
+	 * @param url
+     */
+	var pushStateToHistory = function(url) {
+		var historyContainers = [];
+		$('.ajax-content').each(function(index, ajaxContent) {
+			ajaxContent = $(ajaxContent);
+			historyContainers.push({
+				id: ajaxContent.data('pluginid'),
+				html: $('#c' + ajaxContent.data('pluginid')).html()
+			});
+		});
+		// push state to history including URL change
+		if (!currentUrl) {
+			window.history.pushState({historyContainers: historyContainers}, '', url);
+		}
+		else {
+			currentUrl = false;
+		}
+	};
+
+	/**
+	 * function to show the ajax loader
+	 *
+	 * @param container
+	 */
+	var showAjaxLoader = function(container) {
+		container.css('position', 'relative');
+		var ajaxLoaderHtml = '<div class="cssload-container"><div class="cssload-background"></div><div class="wrapper"><div class="cssload-loader"></div></div></div>';
+		container.append(ajaxLoaderHtml);
+	};
+
+	/**
+	 *
+	 */
+	var initResetButton = function() {
+		var $_form = $('body').find('form.ajax-load');
+		if ($_form.html()) {
+			// remove all previous events
+			$('body').off('click', 'form.ajax-load button:reset');
+			$('body').on('click', 'form.ajax-load button:reset', function (e) {
+				e.preventDefault();
+				$_form.find('input, select').each(function (index, element) {
+					if (element.tagName == 'SELECT') {
+						$(element).find('option:selected').removeAttr('selected');
+					} else if (element.tagName == 'INPUT') {
+						if (element.type == 'text') {
+							element.value = "";
+						} else if (element.type == 'checkbox') {
+							element.checked = "";
+						}
+					}
+				});
+				$_form.submit();
+			});
+		}
+	};
+
+	/**
+	 *
+	 * @param name
+	 * @param value
+	 * @param days
+	 */
+	var cookieSave = function(name, value, days) {
+		var expires = "";
+		if (typeof days != 'undefined') {
+			var date = new Date();
+			date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+			expires = "; expires=" + date.toGMTString();
+		}
+		document.cookie = name + "=" + value + expires + "; path=/";
+	};
+
+	/**
+	 * Event for setting the topic cookie
+	 */
+	var initTopicSetEvents = function() {
+		if ($('.tx-bundpool-topic-set')) {
+			$('.tx-bundpool-topic-set').off('click');
+			$('.tx-bundpool-topic-set').on('click', function(e) {
+				var bundpoolTopicData = $('body').data('tx_bundpool_topic');
+				if (bundpoolTopicData) {
+					cookieSave('tx_bundpool_topic_cookie', bundpoolTopicData);
+				}
+			});
+		}
+	};
+
+	/**
+	 *
+	 * @returns
+	 */
+	var getUrlParams = function() {
+		var urlParams = location.search.substring(1).split('&');
+		var params = {};
+		urlParams.forEach(function(el) {
+			var tmpArr = el.split('=');
+			params[tmpArr[0]] = tmpArr[1];
+		});
+		return params;
+	};
+
+	/**
+	 *
+	 */
+	var setTopicInBodyTagByUrlByParam = function() {
+		if ($('body').data('tx_bundpool_topic') === undefined || $('body').data('tx_bundpool_topic') === '') {
+			$.each(getUrlParams(), function(formElementKey, formElementValue) {
+				if (formElementKey.indexOf('%5Btopic%5D') > 0 || formElementKey.indexOf('[topic]') > 0) {
+					if (formElementValue.toString() !== '') {
+						$('body').attr('data-tx_bundpool_topic', formElementValue);
+					}
+					else {
+						$('body').removeAttr('data-tx_bundpool_topic');
+					}
+				}
+			});
+		}
+	};
+
+	initjQueryTest();
+})(this, document);
+(function(window, document, undefined) {
+
+	var _$lexicon = '';
+
+	/**
+	 * checks and waits for existence of jQuery
+	 */
+	var initjQueryTest = function() {
+		if (typeof $ == 'undefined') {
+			setTimeout(initjQueryTest, 50);
+		} else {
+			_$lexicon = $('body').find('.m-content-lexicon');
+			initLexiconAutoSearch();
+		}
+	};
+
+	/**
+	 *
+	 * @param searchtext
+	 * @param open
+	 * @constructor
+	 */
+	var LexiconSearch = function(searchtext){
+		searchtext.toLowerCase();
+		if (searchtext.length <= 2) {
+			searchtext = '';
+		}
+		_$lexicon.find('ul.m-content-lexicon--list').find('div > li').each(function (index, group){
+			$(group).removeClass('m-content-lexicon--listitem__open');
+			$(group).removeAttr('style');
+			var groupButton = false;
+			$(group).find('li.m-content-lexicon--contentlistitem').each(function(ind, item) {
+				$(item).css('display','none');
+				if ($(item).text().toLowerCase().indexOf(searchtext.toLowerCase()) > -1) {
+					$(item).css({'display':'block'});
+					groupButton = $(item).parents('li.m-content-lexicon--listitem ').find('button');
+				}
+			});
+			if (groupButton) {
+				$(group).removeClass('m-content-lexicon--listitem__disabled');
+				if (searchtext.length > 2) {
+					groupButton.click();
+				}
+			} else {
+				$(group).addClass('m-content-lexicon--listitem__disabled');
+			}
+		});
+	};
+
+	/**
+	 *
+	 * @returns {boolean}
+	 */
+	var initLexiconAutoSearch = function(){
+		if(_$lexicon.html){
+			_$lexicon.find('form.m-content-lexicon--searchForm').submit(function(){
+				LexiconSearch($('body').find('#lex_searchword').val());
+				return false;
+			});
+			_$lexicon.on('input', '.m-content-lexicon--searchForm #lex_searchword', function(){
+				LexiconSearch($(this).val());
+			});
+		}
+		return false;
+	};
+
+	initjQueryTest();
+})(this, document);
+(function(window, document, undefined) {
+
+	/**
+	 *
+	 */
+	var initjQueryTest = function() {
+		if (typeof $ == 'undefined') {
+			setTimeout(initjQueryTest, 50);
+		} else {
+			initCartIcon();
+			initAddToCartEvents();
+		}
+	}
+
+	/**
+	 * initializes the click event for the little cart icon on the right side
+	 */
+	var initCartIcon = function() {
+		$('.m-global-flags--item__basket a').on('click', function(e) {
+			e.preventDefault();
+			showCartWithContent();
+			return false;
+		});
+	}
+
+	/**
+	 * Shows the cart by adding a class to the html tag. The two buttons are hidden at first.
+	 */
+	var showCart = function() {
+		$('.m-global-basket--tableWrapper').empty().css({height: '150px'});
+		if($('.m-global-basket--messages').length > 0) {
+			$('.m-global-basket--messages').remove();
+		}
+		$('html').addClass('has-basket-visible has-no-scroll');
+		$('.m-global-basket--buttonWrapper').hide();
+	}
+
+	/**
+	 * shows the cart content i.e. the items from the session
+	 */
+	var showCartWithContent = function() {
+		showCart();
+		var ajaxUrl = document.location.origin;
+		ajaxUrl += (ajaxUrl.indexOf('?') > -1 ? '&' : '?') + 'type=20160909';
+		showAjaxLoader($('.m-global-basket--tableWrapper'));
+		$.ajax(
+			ajaxUrl
+		).done(function(html) {
+			$('.m-global-basket--tableWrapper').replaceWith(html);
+			$('.m-global-basket--buttonWrapper').show();
+			setCartContentEvents();
+		});
+	}
+
+	/**
+	 * Sets the events for changing the amount and removing an item. Needed after ajax content loading.
+	 */
+	var setCartContentEvents = function() {
+		// amount
+		$('.m-global-basket--qtyBtn__less:not(.m-global-basket--qtyBtn__disabled),.m-global-basket--qtyBtn__more:not(.m-global-basket--qtyBtn__disabled)').on('click', function() {
+			changeAmount($(this));
+		});
+
+		// remove from cart
+		$('.m-global-basket--table .rte-anchor--link').on('click', function(e) {
+			e.preventDefault();
+			showAjaxLoader($('.m-global-basket--tableWrapper'));
+			$.ajax(
+				$(this).attr('href')
+			).done(function(html) {
+				if($('.m-global-basket--messages').length > 0) {
+					$('.m-global-basket--messages').remove();
+				}
+				$('.m-global-basket--tableWrapper').replaceWith(html);
+				if($('.m-global-basket--table td').length === 0) {
+					$('.m-global-basket--buttonWrapper').hide();
+					$('.g-wrapper').removeClass('g-wrapper__showBasket');
+				}
+				setCartContentEvents();
+			});
+		});
+	}
+
+	/**
+	 * changes the amount of an item (decreasing or increasing by 1)
+	 *
+	 * @param trigger
+	 */
+	var changeAmount = function(trigger) {
+		showAjaxLoader($('.m-global-basket--tableWrapper'));
+		$.ajax(
+			trigger.data('url')
+		).done(function(html) {
+			if($('.m-global-basket--messages').length > 0) {
+				$('.m-global-basket--messages').remove();
+			}
+			$('.m-global-basket--tableWrapper').replaceWith(html);
+			setCartContentEvents();
+		});
+	}
+
+	/**
+	 * shows the ajax loader in a container
+	 *
+	 * @param container
+	 */
+	var showAjaxLoader = function(container) {
+		container.css('position', 'relative');
+		var ajaxLoaderHtml = '<div class="cssload-container"><div class="cssload-background"></div><div class="wrapper"><div class="cssload-loader"></div></div></div>';
+		container.append(ajaxLoaderHtml);
+	}
+
+	/**
+	 * initializes the click events for buttons which can add an item to the cart (having the class "bund_pool_pool_addToCart")
+	 */
+	var initAddToCartEvents = function() {
+		$('.bund_pool_pool_addToCart').on('click', function(e) {
+			e.preventDefault();
+			showCart();
+			showAjaxLoader($('.m-global-basket--tableWrapper'));
+			$.ajax(
+				$(this).attr('href')
+			).done(function(html) {
+				$('.g-wrapper').addClass('g-wrapper__showBasket');
+				$('.m-global-basket--tableWrapper').replaceWith(html);
+				$('.m-global-basket--buttonWrapper').show();
+				setCartContentEvents();
+			});
+		});
+		$('.bund_pool_pool_addToCart_product').on('submit', function(e) {
+			e.preventDefault();
+			showCart();
+			showAjaxLoader($('.m-global-basket--tableWrapper'));
+			$.ajax(
+                {
+                    type: "POST",
+                    url: $(this).attr('action'),
+                    data: $(this).serialize(), // serializes the form's elements.
+                    success: function (html) {
+                        $('.g-wrapper').addClass('g-wrapper__showBasket');
+                        $('.m-global-basket--tableWrapper').replaceWith(html);
+                        $('.m-global-basket--buttonWrapper').show();
+                        setCartContentEvents();
+                    }
+                }
+            )
+        });
+	}
+
+	initjQueryTest();
+})(this, document);
